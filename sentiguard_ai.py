@@ -8,9 +8,25 @@ import tkinter as tk
 from tkinter import simpledialog, filedialog
 from google.ai import generativelanguage_v1beta2 as glm
 
+# ASCII Art
+ASCII_ART = """
+
+
+███████ ███████ ███    ██ ████████ ██  ██████  ██    ██  █████  ██████  ██████       ██████  ███████ ███    ███ ██ ███    ██ ██ 
+██      ██      ████   ██    ██    ██ ██       ██    ██ ██   ██ ██   ██ ██   ██     ██       ██      ████  ████ ██ ████   ██ ██ 
+███████ █████   ██ ██  ██    ██    ██ ██   ███ ██    ██ ███████ ██████  ██   ██     ██   ███ █████   ██ ████ ██ ██ ██ ██  ██ ██ 
+     ██ ██      ██  ██ ██    ██    ██ ██    ██ ██    ██ ██   ██ ██   ██ ██   ██     ██    ██ ██      ██  ██  ██ ██ ██  ██ ██ ██ 
+███████ ███████ ██   ████    ██    ██  ██████   ██████  ██   ██ ██   ██ ██████       ██████  ███████ ██      ██ ██ ██   ████ ██ 
+                                                                                                                                
+                                                                                                                                
+
+"""
+
+
 def install(package):
     """Installs missing Python packages using pip."""
     subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+
 
 # Ensure all required libraries are installed
 libraries = ['pandas', 'google-ai-generativelanguage', 'pillow', 'tkinter', 'requests', 'openpyxl']
@@ -21,6 +37,7 @@ for lib in libraries:
         print(f"Installing {lib}...")
         install(lib)
         print(f"{lib} installed successfully.")
+
 
 def get_proxies(webshare_api_key):
     """Fetches proxies filtered by US country code using the Webshare API."""
@@ -35,6 +52,7 @@ def get_proxies(webshare_api_key):
     else:
         print("Failed to fetch proxies:", response.text)
         return []
+
 
 def test_proxy(gemini_api_key, proxies):
     """Tests each proxy to find one that can successfully make API requests to Google Generative AI."""
@@ -56,20 +74,26 @@ def test_proxy(gemini_api_key, proxies):
             print(f"Proxy failed: {proxy}, Error: {e}")
     return None
 
+
 def generate_content(prompt: str, working_proxy: dict, api_key: str) -> str:
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={api_key}"
     headers = {'Content-Type': 'application/json'}
     data = {"contents": [{"parts": [{"text": prompt}]}]}
     response = requests.post(url, headers=headers, json=data, proxies=working_proxy)
     if response.ok:
-        return response.json().get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', 'No response')
+        return response.json().get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text',
+                                                                                                       'No response')
     else:
         raise Exception(f"API request failed: {response.text}")
+
 
 def generate_prompt(base_prompt: str, review: str) -> str:
     return f"{base_prompt} Questo è il commento da analizzare: {review}"
 
+
 def main():
+    print(ASCII_ART)
+
     root = tk.Tk()
     root.withdraw()
 
@@ -166,6 +190,7 @@ def main():
         if confirm_close.lower() != 'sì':
             print("Review gli errori nel file 'error_log.txt'.")
             return
+
 
 if __name__ == "__main__":
     try:
