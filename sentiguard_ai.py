@@ -4,18 +4,16 @@ import os
 import time
 import requests
 import pandas as pd
-import google.generativeai as genai
 import tkinter as tk
 from tkinter import simpledialog, filedialog
-
+from google.ai import generativelanguage_v1beta2 as glm
 
 def install(package):
     """Installs missing Python packages using pip."""
     subprocess.check_call([sys.executable, "-m", "pip", "install", package])
 
-
 # Ensure all required libraries are installed
-libraries = ['pandas', 'google-generativeai', 'pillow', 'tkinter', 'requests', 'openpyxl']
+libraries = ['pandas', 'google-ai-generativelanguage', 'pillow', 'tkinter', 'requests', 'openpyxl']
 for lib in libraries:
     try:
         __import__(lib)
@@ -23,7 +21,6 @@ for lib in libraries:
         print(f"Installing {lib}...")
         install(lib)
         print(f"{lib} installed successfully.")
-
 
 def get_proxies(webshare_api_key):
     """Fetches proxies filtered by US country code using the Webshare API."""
@@ -38,7 +35,6 @@ def get_proxies(webshare_api_key):
     else:
         print("Failed to fetch proxies:", response.text)
         return []
-
 
 def test_proxy(gemini_api_key, proxies):
     """Tests each proxy to find one that can successfully make API requests to Google Generative AI."""
@@ -60,54 +56,18 @@ def test_proxy(gemini_api_key, proxies):
             print(f"Proxy failed: {proxy}, Error: {e}")
     return None
 
-
-def generate_prompt(base_prompt: str, review: str) -> str:
-    return f"{base_prompt} Questo è il commento da analizzare: {review}"
-
-
-def count_tokens(prompt: str) -> int:
-    model = genai.GenerativeModel('gemini-1.5-flash')
-    return model.count_tokens(prompt).total_tokens
-
-
-def generate_content(prompt: str, working_proxy: dict, gemini_api_key: str) -> str:
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={gemini_api_key}"
+def generate_content(prompt: str, working_proxy: dict, api_key: str) -> str:
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={api_key}"
     headers = {'Content-Type': 'application/json'}
     data = {"contents": [{"parts": [{"text": prompt}]}]}
     response = requests.post(url, headers=headers, json=data, proxies=working_proxy)
     if response.ok:
-        return response.json().get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text',
-                                                                                                       'No response')
+        return response.json().get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', 'No response')
     else:
         raise Exception(f"API request failed: {response.text}")
 
-
-def schedule_request(prompt: str, tracker: dict, working_proxy: dict, gemini_api_key: str) -> dict:
-    current_time = time.time()
-    if int(current_time) % 60 == 0 or int(current_time) % 86400 == 0:
-        tracker['request_count'] = 0
-        tracker['token_count'] = 0
-        tracker['start_minute'] = current_time
-        tracker['start_day'] = current_time
-
-    if tracker['request_count'] >= REQUESTS_PER_MINUTE_LIMIT:
-        print("Limite di richieste per minuto raggiunto. Attendere...")
-        time.sleep(60 - (current_time % 60))
-        return schedule_request(prompt, tracker, working_proxy, gemini_api_key)
-    if tracker['request_count'] >= REQUESTS_PER_DAY_LIMIT:
-        raise Exception("Limite di richieste per giorno raggiunto.")
-
-    tokens = count_tokens(prompt)
-    if (tracker['token_count'] + tokens) > TOKENS_PER_MINUTE_LIMIT:
-        print("Limite di token per minuto raggiunto. Attendere...")
-        time.sleep(60 - (current_time % 60))
-        return schedule_request(prompt, tracker, working_proxy, gemini_api_key)
-
-    tracker['request_count'] += 1
-    tracker['token_count'] += tokens
-    ai_text = generate_content(prompt, working_proxy, gemini_api_key)
-    return {'ai_text': ai_text, 'tracker': tracker}
-
+def generate_prompt(base_prompt: str, review: str) -> str:
+    return f"{base_prompt} Questo è il commento da analizzare: {review}"
 
 def main():
     root = tk.Tk()
@@ -119,8 +79,6 @@ def main():
     if not gemini_api_key or not webshare_api_key:
         print("API keys are required to proceed.")
         return
-
-    genai.configure(api_key=gemini_api_key)
 
     file_path = filedialog.askopenfilename(
         title="Seleziona il file CSV o Excel",
@@ -172,7 +130,6 @@ def main():
         print("No working proxy found.")
         return
 
-    tracker = {'request_count': 0, 'token_count': 0, 'start_minute': time.time(), 'start_day': time.time()}
     error_log = []
 
     for i, row in data.iterrows():
@@ -183,10 +140,8 @@ def main():
             full_prompt = generate_prompt(prompt, row[review_column])
             try:
                 print(f"Analisi {j + 1}...")
-                result = schedule_request(full_prompt, tracker, working_proxy, gemini_api_key)
-                response_text = result['ai_text']
+                response_text = generate_content(full_prompt, working_proxy, gemini_api_key)
                 data.at[i, data.columns[-num_analyses + j]] = response_text
-                tracker = result['tracker']
 
                 print(f"Risposta dell'analisi {j + 1}:")
                 print(response_text)
@@ -212,11 +167,7 @@ def main():
             print("Review gli errori nel file 'error_log.txt'.")
             return
 
-
 if __name__ == "__main__":
-    REQUESTS_PER_MINUTE_LIMIT = 15
-    TOKENS_PER_MINUTE_LIMIT = 1000000
-    REQUESTS_PER_DAY_LIMIT = 1500
     try:
         main()
     except Exception as e:
